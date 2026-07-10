@@ -831,7 +831,6 @@
                 </div>
             </form>
         </div>
-
         <div class="table-wrap">
             <div id="capture-area">
                 <h3 class="table-title">제4회 띨띨컵 참가 확정 명단</h3>
@@ -847,6 +846,7 @@
                             <th style="width: 15%;">딜량</th>
                             <th style="width: 8%;">플레이타임</th>
                             <th style="width: 5%;">관리</th>
+                        }
                         </tr>
                     </thead>
                     <tbody id="participant-tbody"></tbody>
@@ -858,7 +858,8 @@
     <div id="tier-page" class="page">
         <div class="table-wrap">
             <div class="table-title">참여인원 티어 분류 현황</div>
-            <div class="teams-grid" id="tier-container"></div>
+            <div class="teams-grid" id="tier-container">
+                </div>
         </div>
     </div>
 
@@ -951,51 +952,52 @@
             <div class="special-award-box">
                 <div class="special-left">
                     <h4>💀 VIP를 처참히 버린(?) 비운의 팀 특별상</h4>
-                    <p>대회 규정에 의거, 최종 최하위 순위 팀의 고생하신 VIP 유저를 표창합니다.</p>
+                    <p>생존 순위가 가장 높으면서 킬 포인트가 0점인, 킬보다 생존에 올인했으나 VIP 수호엔 실패한 팀</p>
                 </div>
                 <div class="special-right">
-                    <div style="font-size:11px; color:#aaa; margin-bottom:4px;" id="special-loser-team">최종 13등 팀</div>
-                    <div class="special-target-vip" id="special-loser-vip">VIP 유저명 확인 불가</div>
+                    <div class="special-target-vip" id="special-team-display">TEAM --</div>
                 </div>
             </div>
-            <table class="final-table">
+            <table class="final-table" style="width:100%;">
                 <thead>
                     <tr>
-                        <th style="width: 10%;">종합 순위</th>
-                        <th style="width: 16%;">팀 구분</th>
-                        <th style="width: 11%;">1R 점수</th>
-                        <th style="width: 11%;">2R 점수</th>
-                        <th style="width: 11%;">3R 점수</th>
-                        <th style="width: 11%;">4R 점수</th>
-                        <th style="width: 15%;">순수 누적 킬수</th>
-                        <th style="width: 15%; color:#00e676;">🔥 최종 합산 점수</th>
+                        <th style="width:10%;">최종순위</th>
+                        <th style="width:25%;">스쿼드 팀명</th>
+                        <th style="width:12%;">R1 점수</th>
+                        <th style="width:12%;">R2 점수</th>
+                        <th style="width:12%;">R3 점수</th>
+                        <th style="width:12%;">R4 점수</th>
+                        <th style="width:17%; color:#00e676;">총합 누적점수</th>
                     </tr>
                 </thead>
-                <tbody id="final-total-tbody"></tbody>
+                <tbody id="final-tbody"></tbody>
             </table>
         </div>
     </div>
 </div>
 
 <script>
-    // ======= [구글 시트 실시간 연동 설정] ======= //
+    // ======= [구글 시트 실시간 연동 핵심 설정] ======= //
     const GOOGLE_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyvgFzt8gSb2eCPYQYOTvDvHfnKNaPReagwxRQFKMXHIEFZuLC7lORilBWuvIKkw4ZD/exec";
-    
+
+    // 데이터 저장용 메인 전역 변수들
     let participantList = [];
     let teamData = {};
-    let teamVipSlots = {};
+    let teamVipSlots = {}; // 각 팀의 몇 번째 슬롯(0~3)이 VIP인지 기록
     let roundStats = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-    for(let i=1; i<=13; i++) {
+    // 1팀부터 13팀까지 초기 빈 배열 할당
+    for (let i = 1; i <= 13; i++) {
         teamData[i] = [null, null, null, null];
-        teamVipSlots[i] = 0;
+        teamVipSlots[i] = 0; // 디폴트는 0번 슬롯이 VIP
     }
 
-    // 구글 시트 데이터 로드
+    // [구글 시트 연동] 데이터 불러오기 함수
     async function loadAllFromGoogleSheet() {
         try {
             const response = await fetch(GOOGLE_WEB_APP_URL);
             const data = await response.json();
+            
             if (data.members) participantList = data.members;
             if (data.teams) teamData = data.teams;
             if (data.roundStats) roundStats = data.roundStats;
@@ -1003,97 +1005,17 @@
             
             updateUI();
         } catch (error) {
-            console.error("데이터 로드 실패:", error);
+            console.error("구글 시트 데이터 로드 실패. 로컬스토리지를 탐색합니다:", error);
+            // 백업용 로컬스토리지 작동
+            if (localStorage.getItem('participantList')) participantList = JSON.parse(localStorage.getItem('participantList'));
+            if (localStorage.getItem('teamData')) teamData = JSON.parse(localStorage.getItem('teamData'));
+            if (localStorage.getItem('roundStats')) roundStats = JSON.parse(localStorage.getItem('roundStats'));
+            if (localStorage.getItem('teamVipSlots')) teamVipSlots = JSON.parse(localStorage.getItem('teamVipSlots'));
+            updateUI();
         }
     }
 
-    // 초기 실행 및 페이지 전환 시스템
-    function switchPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('active'));
-        
-        document.getElementById(pageId).classList.add('active');
-        const navCard = document.getElementById('nav-' + pageId);
-        if(navCard) navCard.classList.add('active');
-    }
-
-    // 전체 화면 인터페이스 업데이트
-    function updateUI() {
-        renderParticipantTable();
-        renderTierPage();
-        renderTeamLayout();
-        for(let r=1; r<=4; r++) {
-            renderRoundContainer(r);
-        }
-        renderFinalDashboard();
-        document.getElementById('total-count').textContent = participantList.length + " 명";
-    }
-
-    // 딜량 기준 폰트 색상 계산 함수
-    function getDmgColorClass(dmg) {
-        if(dmg < 200) return 'dmg-gray';
-        if(dmg < 300) return 'dmg-green';
-        if(dmg < 400) return 'dmg-yellow';
-        if(dmg < 500) return 'dmg-red';
-        return 'dmg-rainbow';
-    }
-
-    // 티어 판정 함수
-    function getTier(dmgN, dmgR, playTime) {
-        let maxDmg = Math.max(dmgN, dmgR);
-        if (maxDmg >= 450 || playTime >= 5000) return "1티어";
-        if (maxDmg >= 350 || playTime >= 3000) return "2티어";
-        if (maxDmg >= 250 || playTime >= 1500) return "3티어";
-        return "4티어";
-    }
-
-    // 참가현황 명단 그리기
-    function renderParticipantTable() {
-        const tbody = document.getElementById('participant-tbody');
-        tbody.innerHTML = '';
-        if(participantList.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="no-data">등록된 신청자가 없습니다.</td></tr>`;
-            return;
-        }
-
-        participantList.forEach((p, idx) => {
-            const tier = getTier(p.dmgNormal, p.dmgRanked, p.playTime);
-            const tr = document.createElement('tr');
-            
-            let teamSelectHtml = `<select onchange="forceOriginalTeamChange('${p.broadcastName}', this.value)">
-                <option value="">미배정</option>`;
-            for(let i=1; i<=13; i++) {
-                teamSelectHtml += `<option value="${i}" ${p.team == i ? 'selected' : ''}>${i}팀</option>`;
-            }
-            teamSelectHtml += `</select>`;
-
-            tr.innerHTML = `
-                <td>${idx + 1}</td>
-                <td style="font-weight:bold;">${p.broadcastName}</td>
-                <td>${teamSelectHtml}</td>
-                <td><span class="badge" style="background-color:#444; color:#fff;">${tier}</span></td>
-                <td style="color:#aaa; font-size:14px;">${p.ingameId}</td>
-                <td>
-                    <span class="dmg-badge dmg-normal">일반 ${p.dmgNormal}</span>
-                    <span class="dmg-badge dmg-ranked">경쟁 ${p.dmgRanked}</span>
-                </td>
-                <td style="font-size:15px;">${p.playTime}h</td>
-                <td><button class="btn btn-danger btn-sm" onclick="deleteParticipant('${p.broadcastName}')">삭제</button></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // 연동 보정 함수
-    function forceOriginalTeamChange(broadcastName, selectedValue) {
-        const p = participantList.find(x => x.broadcastName === broadcastName);
-        if (p) {
-            p.team = selectedValue;
-            saveAllToGoogleSheet();
-        }
-    }
-
-    // 구글 시트에 실시간 저장 요청
+    // [구글 시트 연동] 데이터 전송/저장 함수 
     async function saveAllToGoogleSheet() {
         const payload = {
             members: participantList,
@@ -1101,147 +1023,682 @@
             roundStats: roundStats,
             teamVips: teamVipSlots
         };
+        
+        // 백업용 로컬스토리지에도 동시 저장
+        localStorage.setItem('participantList', JSON.stringify(participantList));
+        localStorage.setItem('teamData', JSON.stringify(teamData));
+        localStorage.setItem('roundStats', JSON.stringify(roundStats));
+        localStorage.setItem('teamVipSlots', JSON.stringify(teamVipSlots));
+
         try {
+            updateUI(); // UI를 먼저 갱신하여 딜레이 체감을 줄임
             await fetch(GOOGLE_WEB_APP_URL, {
                 method: "POST",
                 body: JSON.stringify(payload)
             });
-            updateUI();
         } catch (error) {
-            console.error("데이터 저장 실패:", error);
+            console.error("구글 시트 실시간 저장 실패:", error);
         }
     }
 
-    // 데이터 추가 핸들러
+    // 최초 로드 실행
+    window.onload = function() {
+        loadAllFromGoogleSheet();
+    };
+
+    // 화면 UI 일괄 업데이트 함수
+    function updateUI() {
+        renderParticipantTable();
+        renderTierPage();
+        renderTeamLayout();
+        for (let r = 1; r <= 4; r++) {
+            renderRoundContainer(r);
+        }
+        renderFinalDashboard();
+        
+        const totalCountEl = document.getElementById('total-count');
+        if (totalCountEl) totalCountEl.textContent = participantList.length + " 명";
+    }
+
+    // 탭 전환 제어 함수
+    function switchPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('active'));
+        
+        const targetPage = document.getElementById(pageId);
+        if (targetPage) targetPage.classList.add('active');
+        
+        const navCard = document.getElementById('nav-' + pageId);
+        if (navCard) navCard.classList.add('active');
+    }
+
+    // 참가자 추가 핸들러
     function addParticipant(e) {
         e.preventDefault();
-        const name = document.getElementById('broadcast-name').value.trim();
-        const ingame = document.getElementById('ingame-id').value.trim();
-        const normal = parseInt(document.getElementById('dmg-normal').value) || 0;
-        const ranked = parseInt(document.getElementById('dmg-ranked').value) || 0;
-        const time = parseInt(document.getElementById('play-time').value) || 0;
+        const bName = document.getElementById('broadcast-name').value.trim();
+        const igId = document.getElementById('ingame-id').value.trim();
+        const dmgN = parseInt(document.getElementById('dmg-normal').value) || 0;
+        const dmgR = parseInt(document.getElementById('dmg-ranked').value) || 0;
+        const pTime = parseInt(document.getElementById('play-time').value) || 0;
 
-        if(participantList.some(x => x.broadcastName === name)) {
-            alert("이미 존재하는 방송국 명입니다.");
+        if (participantList.some(p => p.broadcastName === bName)) {
+            alert('이미 등록된 방송국 이름입니다.');
             return;
         }
 
-        participantList.push({
-            broadcastName: name,
-            ingameId: ingame,
-            dmgNormal: normal,
-            dmgRanked: ranked,
-            playTime: time,
-            team: ""
-        });
+        const maxDmg = Math.max(dmgN, dmgR);
+        let tier = 4;
+        if (maxDmg >= 450) tier = 1;
+        else if (maxDmg >= 350) tier = 2;
+        else if (maxDmg >= 250) tier = 3;
 
+        const newP = {
+            broadcastName: bName,
+            ingameId: igId,
+            dmgNormal: dmgN,
+            dmgRanked: dmgR,
+            playTime: pTime,
+            tier: tier,
+            team: "미배정"
+        };
+
+        participantList.push(newP);
         document.getElementById('participant-form').reset();
         saveAllToGoogleSheet();
     }
 
-    function deleteParticipant(name) {
-        participantList = participantList.filter(x => x.broadcastName !== name);
+    // 개별 참가자 삭제
+    function deleteParticipant(broadcastName) {
+        if (!confirm(`${broadcastName} 참가자를 삭제하시겠습니까?`)) return;
+        
+        // 팀 배치도에서도 삭제 처리
+        for (let t in teamData) {
+            for (let i = 0; i < 4; i++) {
+                if (teamData[t][i] && teamData[t][i].broadcastName === broadcastName) {
+                    teamData[t][i] = null;
+                }
+            }
+        }
+        participantList = participantList.filter(p => p.broadcastName !== broadcastName);
         saveAllToGoogleSheet();
     }
 
+    // 명단 전체 삭제
     function deleteAllParticipants() {
-        if(confirm("정말 모든 명단을 삭제하시겠습니까?")) {
-            participantList = [];
-            saveAllToGoogleSheet();
+        if (!confirm('정말로 전체 명단을 삭제하시겠습니까? 팀 배치 정보도 초기화됩니다.')) return;
+        participantList = [];
+        for (let i = 1; i <= 13; i++) {
+            teamData[i] = [null, null, null, null];
+            teamVipSlots[i] = 0;
         }
+        saveAllToGoogleSheet();
     }
 
-    // 티어표 렌더링
-    function renderTierPage() {
-        const container = document.getElementById('tier-container');
-        container.innerHTML = '';
-        const tiers = ["1티어", "2티어", "3티어", "4티어"];
-        
-        tiers.forEach(t => {
-            const card = document.createElement('div');
-            card.className = 'team-card';
-            card.innerHTML = `<h4>${t}</h4><div class="team-members-list" id="tier-list-${t}"></div>`;
-            container.appendChild(card);
+    // 팀 배치 전체 인원 초기화
+    function resetAllTeams() {
+        if (!confirm('배치된 모든 팀원 구성을 초기화하시겠습니까? 명단은 유지됩니다.')) return;
+        for (let i = 1; i <= 13; i++) {
+            teamData[i] = [null, null, null, null];
+            teamVipSlots[i] = 0;
+        }
+        participantList.forEach(p => p.team = "미배정");
+        saveAllToGoogleSheet();
+    }
+
+    // 특정 라운드 점수 초기화
+    function resetRound(r) {
+        if (!confirm(`${r}라운드의 모든 기록과 리더보드를 초기화하시겠습니까?`)) return;
+        roundStats[r] = {};
+        saveAllToGoogleSheet();
+    }
+
+    // 테이블 렌더링: 명단 관리 화면
+    function renderParticipantTable() {
+        const tbody = document.getElementById('participant-tbody');
+        tbody.innerHTML = '';
+
+        if (participantList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="no-data">등록된 참가자가 없습니다. 인원을 추가해 주세요.</td></tr>`;
+            return;
+        }
+
+        participantList.forEach((p, index) => {
+            const tr = document.createElement('tr');
             
-            const listArea = document.getElementById(`tier-list-${t}`);
-            const members = participantList.filter(x => getTier(x.dmgNormal, x.dmgRanked, x.playTime) === t);
-            
-            if(members.length === 0) {
-                listArea.innerHTML = `<div class="slot-empty">인원 없음</div>`;
-            } else {
-                members.forEach(m => {
-                    const item = document.createElement('div');
-                    item.className = 'team-slot';
-                    item.innerHTML = `<span><b>${m.broadcastName}</b></span>`;
-                    listArea.appendChild(item);
-                });
+            let teamOptions = `<option value="미배정" ${p.team === '미배정' ? 'selected' : ''}>미배정</option>`;
+            for (let i = 1; i <= 13; i++) {
+                teamOptions += `<option value="${i}" ${String(p.team) === String(i) ? 'selected' : ''}>${i}팀</option>`;
             }
+
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td style="font-weight:bold; color:#ffffff;">${p.broadcastName}</td>
+                <td>
+                    <select onchange="assignTeamDirect('${p.broadcastName}', this.value)">
+                        ${teamOptions}
+                    </select>
+                </td>
+                <td><span class="badge" style="background-color:${getTierColor(p.tier)}; color:#000;">${p.tier} Tier</span></td>
+                <td style="font-size:14px; color:#aaa; font-family:monospace;">${p.ingameId}</td>
+                <td>
+                    <span class="dmg-badge dmg-normal">일 ${p.dmgNormal}</span>
+                    <span class="dmg-badge dmg-ranked">경 ${p.dmgRanked}</span>
+                </td>
+                <td style="font-size:14px;">${p.playTime.toLocaleString()} H</td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteParticipant('${p.broadcastName}')">삭제</button></td>
+            `;
+            tbody.appendChild(tr);
         });
     }
 
-    // 대회 배치도 및 나머지 화면 렌더링 명세 정의
-    function renderTeamLayout() {
-        const container = document.getElementById('teams-container');
-        container.innerHTML = '';
-        for(let i=1; i<=13; i++) {
-            const card = document.createElement('div');
-            card.className = 'team-card';
-            card.innerHTML = `<h4>${i}팀</h4><div class="team-members-list">`;
-            
-            const teamMembers = participantList.filter(x => String(x.team) === String(i));
-            for(let s=0; s<4; s++) {
-                const p = teamMembers[s];
-                if(p) {
-                    card.innerHTML += `<div class="team-slot"><span>${p.broadcastName}</span></div>`;
-                } else {
-                    card.innerHTML += `<div class="team-slot"><span class="slot-empty">공석</span></div>`;
+    function getTierColor(t) {
+        if (t === 1) return '#ff1744';
+        if (t === 2) return '#ff9100';
+        if (t === 3) return '#00e676';
+        return '#29b6f6';
+    }
+
+    // 명단에서 드롭다운으로 팀을 직동 배정할 때 처리
+    function assignTeamDirect(bName, teamVal) {
+        const p = participantList.find(x => x.broadcastName === bName);
+        if (!p) return;
+
+        // 기존 팀 배치에서 제거
+        for (let t in teamData) {
+            for (let i = 0; i < 4; i++) {
+                if (teamData[t][i] && teamData[t][i].broadcastName === bName) {
+                    teamData[t][i] = null;
                 }
             }
-            card.innerHTML += `</div>`;
+        }
+
+        if (teamVal === '미배정') {
+            p.team = '미배정';
+            saveAllToGoogleSheet();
+            return;
+        }
+
+        const targetTeam = teamData[teamVal];
+        let emptyIdx = targetTeam.findIndex(slot => slot === null);
+
+        if (emptyIdx === -1) {
+            alert(`${teamVal}팀은 이미 4명이 가득 찼습니다. 다른 팀을 선택하거나 먼저 자리를 비워주세요.`);
+            p.team = '미배정';
+            renderParticipantTable();
+            return;
+        }
+
+        targetTeam[emptyIdx] = p;
+        p.team = teamVal;
+        saveAllToGoogleSheet();
+    }
+
+    // 티어표 레이아웃 그리기
+    function renderTierPage() {
+        const container = document.getElementById('tier-container');
+        container.innerHTML = '';
+
+        for (let t = 1; t <= 4; t++) {
+            const card = document.createElement('div');
+            card.className = 'team-card';
+            card.style.borderTopColor = getTierColor(t);
+            
+            const filtered = participantList.filter(x => x.tier === t);
+            
+            let html = `<h4>${t} 티어 인원 (${filtered.length}명)</h4>`;
+            html += `<div class="team-members-list">`;
+            
+            if (filtered.length === 0) {
+                html += `<div class="slot-empty">해당 티어 없음</div>`;
+            } else {
+                filtered.forEach(p => {
+                    let teamOptions = `<option value="미배정" ${p.team === '미배정' ? 'selected' : ''}>미배정</option>`;
+                    for (let i = 1; i <= 13; i++) {
+                        teamOptions += `<option value="${i}" ${String(p.team) === String(i) ? 'selected' : ''}>${i}팀</option>`;
+                    }
+                    
+                    const maxD = Math.max(p.dmgNormal, p.dmgRanked);
+                    html += `
+                        <div class="team-slot" style="min-height:54px;">
+                            <div style="display:flex; flex-direction:column; gap:2px;">
+                                <b style="color:#fff; font-size:14px;">${p.broadcastName}</b>
+                                <span style="font-size:11px; color:#888;">최고딜: ${maxD}</span>
+                            </div>
+                            <select onchange="forceOriginalTeamChange('${p.broadcastName}', this.value)" style="height:28px; padding:2px; font-size:11px;">
+                                ${teamOptions}
+                            </select>
+                        </div>
+                    `;
+                });
+            }
+            html += `</div>`;
+            card.innerHTML = html;
             container.appendChild(card);
         }
     }
 
-    function resetAllTeams() {
-        if(confirm("모든 팀 배정을 초기화하겠습니까?")) {
-            participantList.forEach(x => x.team = "");
-            saveAllToGoogleSheet();
+    // 팀 배치도 레이아웃 생성 및 소터블 드래그앤드롭 설정
+    function renderTeamLayout() {
+        const container = document.getElementById('teams-container');
+        container.innerHTML = '';
+
+        for (let tId = 1; tId <= 13; tId++) {
+            const card = document.createElement('div');
+            card.className = 'team-card';
+            
+            let slotsHtml = '';
+            for (let sIdx = 0; sIdx < 4; sIdx++) {
+                const p = teamData[tId][sIdx];
+                const isVip = teamVipSlots[tId] === sIdx;
+                
+                if (p) {
+                    slotsHtml += `
+                        <div class="team-slot ${isVip ? 'vip-active' : ''}" data-team="${tId}" data-slot="${sIdx}">
+                            <label class="vip-radio-label">
+                                <input type="radio" name="vip-team-${tId}" ${isVip ? 'checked' : ''} onchange="setVipSlot(${tId}, ${sIdx})">
+                                <span class="custom-radio"></span>
+                                <span><b>${p.broadcastName}</b> <small style="color:${getTierColor(p.tier)}">[T${p.tier}]</small></span>
+                            </label>
+                            <button class="btn btn-danger btn-sm" style="padding:2px 6px; font-size:10px;" onclick="removeMemberFromTeam(${tId}, ${sIdx})">X</button>
+                        </div>
+                    `;
+                } else {
+                    slotsHtml += `
+                        <div class="team-slot data-empty ${isVip ? 'vip-active' : ''}" data-team="${tId}" data-slot="${sIdx}">
+                            <div class="slot-empty">
+                                <label class="vip-radio-label">
+                                    <input type="radio" name="vip-team-${tId}" ${isVip ? 'checked' : ''} onchange="setVipSlot(${tId}, ${sIdx})">
+                                    <span class="custom-radio"></span>
+                                    <span style="color:#555;">(비어 있음)</span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            card.innerHTML = `
+                <h4>${tId}번 스쿼드 팀</h4>
+                <div class="team-members-list" data-team-group="${tId}">
+                    ${slotsHtml}
+                </div>
+            `;
+            container.appendChild(card);
         }
     }
 
-    function renderRoundContainer(r) {
-        const container = document.getElementById(`round-container-${r}`);
-        if(container) container.innerHTML = `<p style="color:#aaa; text-align:center; padding:20px;">라운드 경기 데이터 배치 완료</p>`;
+    // VIP 라디오 버튼 클릭 처리
+    function setVipSlot(teamId, slotIdx) {
+        teamVipSlots[teamId] = slotIdx;
+        saveAllToGoogleSheet();
     }
 
-    function toggleLeaderboard(r) {
-        const area = document.getElementById(`leaderboard-area-${r}`);
-        if(area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    // 배치도 카드 내부 우측 [X] 버튼 클릭 시 팀 탈퇴 처리
+    function removeMemberFromTeam(tId, sIdx) {
+        const p = teamData[tId][sIdx];
+        if (!p) return;
+        
+        const matched = participantList.find(x => x.broadcastName === p.broadcastName);
+        if (matched) matched.team = '미배정';
+        
+        teamData[tId][sIdx] = null;
+        saveAllToGoogleSheet();
     }
 
-    function resetRound(r) {
-        if(confirm(`${r}라운드 점수를 초기화하겠습니까?`)) {
-            roundStats[r] = {};
-            saveAllToGoogleSheet();
+    // 라운드별 경기 점수 입력 컨테이너 생성
+    function renderRoundContainer(rNum) {
+        const container = document.getElementById('round-container-' + rNum);
+        if (!container) return;
+        container.innerHTML = '';
+
+        for (let tId = 1; tId <= 13; tId++) {
+            if (!roundStats[rNum][tId]) {
+                roundStats[rNum][tId] = { rank: 13, kill: 0, vipSurvive: false };
+            }
+            const stat = roundStats[rNum][tId];
+            
+            const block = document.createElement('div');
+            block.className = 'round-team-block';
+
+            let memberNames = [];
+            let vipName = "없음";
+            for (let i = 0; i < 4; i++) {
+                if (teamData[tId][i]) {
+                    let nameStr = teamData[tId][i].broadcastName;
+                    if (teamVipSlots[tId] === i) {
+                        nameStr += "👑";
+                        vipName = teamData[tId][i].broadcastName;
+                    }
+                    memberNames.push(nameStr);
+                }
+            }
+            const membersLine = memberNames.length > 0 ? memberNames.join(', ') : '배치된 팀원 없음';
+
+            let rankOptions = '';
+            for (let rank = 1; rank <= 13; rank++) {
+                rankOptions += `<option value="${rank}" ${stat.rank === rank ? 'selected' : ''}>${rank} 등</option>`;
+            }
+
+            block.innerHTML = `
+                <div class="round-team-header">
+                    <div class="round-team-title-wrap">
+                        <span class="round-team-title">${tId}팀 스쿼드</span>
+                        <span style="font-size:13px; color:#aaa;">(${membersLine})</span>
+                    </div>
+                    <div class="round-team-meta">
+                        <div class="team-assign-wrap">
+                            <label style="margin:0; margin-right:6px; font-size:13px;">순위 점수:</label>
+                            <select onchange="updateRoundStat(${rNum}, ${tId}, 'rank', this.value)">
+                                ${rankOptions}
+                            </select>
+                        </div>
+                        <div class="team-assign-wrap">
+                            <label style="margin:0; margin-right:6px; font-size:13px;">팀 총 킬수:</label>
+                            <input type="number" class="input-mini" value="${stat.kill}" min="0" onchange="updateRoundStat(${rNum}, ${tId}, 'kill', this.value)">
+                        </div>
+                        <label class="vip-checkbox-label">
+                            <input type="checkbox" ${stat.vipSurvive ? 'checked' : ''} onchange="updateRoundStat(${rNum}, ${tId}, 'vipSurvive', this.checked)">
+                            👑 VIP 생존보너스 (+5)
+                        </label>
+                    </div>
+                </div>
+            `;
+            container.appendChild(block);
         }
     }
 
+    // 라운드 수치 변경 시 데이터 동기화
+    function updateRoundStat(rNum, tId, field, val) {
+        if (field === 'rank' || field === 'kill') {
+            roundStats[rNum][tId][field] = parseInt(val) || 0;
+        } else if (field === 'vipSurvive') {
+            roundStats[rNum][tId][field] = !!val;
+        }
+        saveAllToGoogleSheet();
+    }
+
+    // 순위 가이드라인 점수표 계산 규칙
+    function getRankPoint(rank) {
+        const points = { 1: 10, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1, 8: 1, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0 };
+        return points[rank] || 0;
+    }
+
+    // 라운드별 리더보드 토글 온오프
+    function toggleLeaderboard(rNum) {
+        const area = document.getElementById('leaderboard-area-1' + rNum === 'leaderboard-area-1' ? 'leaderboard-area-1' : 'leaderboard-area-' + rNum);
+        if (!area) return;
+
+        if (area.style.display === 'block') {
+            area.style.display = 'none';
+            return;
+        }
+
+        let arr = [];
+        for (let tId = 1; tId <= 13; tId++) {
+            const stat = roundStats[rNum][tId] || { rank: 13, kill: 0, vipSurvive: false };
+            const rPt = getRankPoint(stat.rank);
+            const kPt = stat.kill;
+            const vPt = stat.vipSurvive ? 5 : 0;
+            const total = rPt + kPt + vPt;
+            arr.push({ teamId: tId, rank: stat.rank, kill: stat.kill, vip: stat.vipSurvive, score: total });
+        }
+
+        arr.sort((a, b) => b.score - a.score || a.rank - b.rank);
+
+        let topHtml = '';
+        arr.slice(0, 5).forEach((item, idx) => {
+            topHtml += `
+                <div class="rank-card rank-${idx + 1}">
+                    <div class="rank-number">RANK ${idx + 1}</div>
+                    <div class="rank-card-team">${item.teamId}팀 스쿼드</div>
+                    <div class="rank-card-score">${item.score} 점 <span style="font-size:11px; color:#aaa;">(${item.rank}등/킬:${item.kill}/${item.vip?'VIP O':'X'})</span></div>
+                </div>
+            `;
+        });
+
+        area.innerHTML = `
+            <div class="leaderboard-capture-box">
+                <h4 style="margin:0 0 10px 0; color:#ffb300; font-size:15px;">🏆 ROUND ${rNum} 실시간 순위 리더보드 (TOP 5)</h4>
+                <div class="rank-top5-container">${topHtml}</div>
+            </div>
+        `;
+        area.style.display = 'block';
+    }
+
+    // 최종 종합 순위 대시보드 화면 연산 및 렌더링
     function renderFinalDashboard() {
-        const tbody = document.getElementById('final-total-tbody');
-        if(tbody) tbody.innerHTML = `<tr><td colspan="8" class="no-data">경기 결과 종합 진행 중...</td></tr>`;
+        const tbody = document.getElementById('final-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        let teamScores = [];
+        for (let tId = 1; tId <= 13; tId++) {
+            let r1 = 0, r2 = 0, r3 = 0, r4 = 0;
+            
+            let s1 = roundStats[1][tId]; if (s1) r1 = getRankPoint(s1.rank) + s1.kill + (s1.vipSurvive ? 5 : 0);
+            let s2 = roundStats[2][tId]; if (s2) r2 = getRankPoint(s2.rank) + s2.kill + (s2.vipSurvive ? 5 : 0);
+            let s3 = roundStats[3][tId]; if (s3) r3 = getRankPoint(s3.rank) + s3.kill + (s3.vipSurvive ? 5 : 0);
+            let s4 = roundStats[4][tId]; if (s4) r4 = getRankPoint(s4.rank) + s4.kill + (s4.vipSurvive ? 5 : 0);
+            
+            let total = r1 + r2 + r3 + r4;
+            teamScores.push({ teamId: tId, r1, r2, r3, r4, total });
+        }
+
+        teamScores.sort((a, b) => b.total - a.total);
+
+        // 포디움 최고 권위 대상자 출력
+        if (teamScores.length > 0) {
+            document.getElementById('podium-1st-team').textContent = teamScores[0].teamId + "팀 스쿼드";
+            document.getElementById('podium-1st-score').textContent = teamScores[0].total + " 점";
+            renderPodiumMembers('podium-1st-members', teamScores[0].teamId);
+        }
+        if (teamScores.length > 1) {
+            document.getElementById('podium-2nd-team').textContent = teamScores[1].teamId + "팀 스쿼드";
+            document.getElementById('podium-2nd-score').textContent = teamScores[1].total + " 점";
+            renderPodiumMembers('podium-2nd-members', teamScores[1].teamId);
+        }
+
+        // 비운의 킬빵 0점 팀 특별상 연산
+        let specialTeamStr = "해당 팀 없음";
+        let maxSurvivalRankVal = 999;
+        
+        for (let tId = 1; tId <= 13; tId++) {
+            let totalKills = 0;
+            let sumRank = 0;
+            for (let r = 1; r <= 4; r++) {
+                if (roundStats[r][tId]) {
+                    totalKills += roundStats[r][tId].kill;
+                    sumRank += roundStats[r][tId].rank;
+                }
+            }
+            if (totalKills === 0 && sumRank > 0) {
+                if (sumRank < maxSurvivalRankVal) {
+                    maxSurvivalRankVal = sumRank;
+                    specialTeamStr = tId + "팀 스쿼드 (누적 0킬 존버전략)";
+                }
+            }
+        }
+        document.getElementById('special-team-display').textContent = specialTeamStr;
+
+        // 메인 결과 스코어 표 출력
+        teamScores.forEach((row, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = `row-${idx + 1}`;
+            tr.innerHTML = `
+                <td style="font-weight:900; font-size:20px; color:${idx === 0 ? '#ffb300' : '#fff'};">${idx + 1} 위</td>
+                <td style="font-weight:bold; color:#ffffff; font-size:18px;">${row.teamId}팀 스쿼드</td>
+                <td>${row.r1} 점</td>
+                <td>${row.r2} 점</td>
+                <td>${row.r3} 점</td>
+                <td>${row.r4} 점</td>
+                <td class="score-total-cell">${row.total} 점</td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
-    // 화면 캡처 유틸리티 기능들
-    function captureTable() { alert("이미지 캡처 기능을 실행합니다."); }
-    function saveInChunks() { alert("분할 저장을 실행합니다."); }
-    function exportData() { alert("데이터 백업 내보내기를 완료했습니다."); }
-    function importData(e) { alert("백업 데이터를 성공적으로 매핑했습니다."); }
-    function captureFinalDashboard() { alert("종합 결과 대시보드 저장을 시도합니다."); }
+    function renderPodiumMembers(elId, teamId) {
+        const wrap = document.getElementById(elId);
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        
+        for (let i = 0; i < 4; i++) {
+            const p = teamData[teamId][i];
+            if (p) {
+                const isVip = teamVipSlots[teamId] === i;
+                const tag = document.createElement('span');
+                tag.className = `podium-member-tag ${isVip ? 'is-vip' : ''}`;
+                tag.textContent = p.broadcastName + (isVip ? " (👑VIP)" : "");
+                wrap.appendChild(tag);
+            }
+        }
+    }
 
-    // 웹 페이지 구동 시 최초 구글 시트 정보 요청 호출
-    window.onload = function() {
-        loadAllFromGoogleSheet();
-    };
+    // 티어표 드롭다운 조작 시 신청현황의 진짜 원본 엘리먼트를 조종하여 완벽하게 상호 연동시키는 함수
+    function forceOriginalTeamChange(broadcastName, selectedValue) {
+        let originalSelect = null;
+        
+        // 1. 신청현황 테이블 전체에서 이 참가자가 속한 행의 select 박스를 원격 추적합니다.
+        const allSelects = document.querySelectorAll('table select');
+        allSelects.forEach(select => {
+            const row = select.closest('tr');
+            if (row && row.textContent.includes(broadcastName)) {
+                originalSelect = select;
+            }
+        });
+
+        // 2. 신청현황 원본 select를 찾았다면 가상으로 변경 이벤트를 유도합니다.
+        if (originalSelect) {
+            originalSelect.value = selectedValue;
+            originalSelect.dispatchEvent(new Event('change'));
+        } else {
+            // 백업 처리: 혹시 화면에 테이블이 완전히 없더라도 데이터 배열을 강제로 맞춥니다.
+            const p = participantList.find(x => x.broadcastName === broadcastName);
+            if (p) {
+                p.team = selectedValue;
+            }
+            // 기존 팀 배치에서 제거
+            for (let t in teamData) {
+                for (let i = 0; i < 4; i++) {
+                    if (teamData[t][i] && teamData[t][i].broadcastName === broadcastName) {
+                        teamData[t][i] = null;
+                    }
+                }
+            }
+            if (selectedValue !== '미배정') {
+                const targetTeam = teamData[selectedValue];
+                let emptyIdx = targetTeam.findIndex(slot => slot === null);
+                if (emptyIdx !== -1) {
+                    targetTeam[emptyIdx] = p;
+                }
+            }
+            saveAllToGoogleSheet();
+        }
+    }
+
+    // [시스템 파일 처리] 백업용 내보내기/불러오기 기능
+    function exportData() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+            participantList, teamData, roundStats, teamVipSlots
+        }));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "제4회_띨띨컵_전체백업데이터.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (parsed.participantList) participantList = parsed.participantList;
+                if (parsed.teamData) teamData = parsed.teamData;
+                if (parsed.roundStats) roundStats = parsed.roundStats;
+                if (parsed.teamVipSlots) teamVipSlots = parsed.teamVipSlots;
+                
+                saveAllToGoogleSheet();
+                alert('데이터 백업 파일이 성공적으로 연동 및 업로드 되었습니다.');
+            } catch (err) {
+                alert('파일을 읽는 도중 오류가 발생했습니다. 올바른 json 형식이 아닙니다.');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // ======= [📸 고화질 캡처 라이브러리 스크립트 실행부] ======= //
+    function captureTable() {
+        const target = document.getElementById('wrapper');
+        html2canvas(target, {
+            backgroundColor: '#121416',
+            scale: 2, 
+            logging: false,
+            useCORS: true
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = '제4회_띨띨컵_전체화면현황.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+
+    function saveInChunks() {
+        const tbody = document.getElementById('participant-tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        if(rows.length === 0 || rows[0].textContent.includes("등록된 참가자가 없습니다")) {
+            alert("캡처할 참가자 명단이 존재하지 않습니다.");
+            return;
+        }
+        
+        const chunkSize = 10;
+        let index = 0;
+        
+        function captureNext() {
+            if(index >= rows.length) {
+                rows.forEach(r => r.style.display = '');
+                return;
+            }
+            
+            rows.forEach((r, idx) => {
+                if(idx >= index && idx < index + chunkSize) r.style.display = '';
+                else r.style.display = 'none';
+            });
+            
+            const target = document.getElementById('capture-area');
+            html2canvas(target, {
+                backgroundColor: '#1a1d20',
+                scale: 2,
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `참가명단_분할_단위_${Math.floor(index/chunkSize)+1}번팩.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                index += chunkSize;
+                setTimeout(captureNext, 600);
+            });
+        }
+        captureNext();
+    }
+
+    function captureFinalDashboard() {
+        const target = document.getElementById('final-dashboard-capture');
+        html2canvas(target, {
+            backgroundColor: '#111417',
+            scale: 2,
+            useCORS: true
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = '제4회_띨띨컵_최종종합순위결과.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
 </script>
 </body>
 </html>
