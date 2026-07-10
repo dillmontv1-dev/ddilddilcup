@@ -988,47 +988,89 @@
 </div>
 
 <script>
-    let participantList = [];
-    let teamData = {};
-    let teamVipSlots = {}; 
-    
-    for(let i=1; i<=13; i++) {
-        teamData[i] = [null, null, null, null];
-        teamVipSlots[i] = 0; 
-    }
-    let roundStats = { 1: {}, 2: {}, 3: {}, 4: {} };
+   // ======= [구글 시트 실시간 연동 설정] =======
+// ⚠️ 여기에 방금 단계 1에서 복사한 구글 웹 앱 웹 주소(URL)를 입력하세요!
+const GOOGLE_WEB_APP_URL = "여기에_구글_웹앱_URL을_넣으세요"; 
 
-    window.onload = function() {
-        const savedMembers = localStorage.getItem("ddilcup4_members");
-        const savedTeams = localStorage.getItem("ddilcup4_teams");
-        const savedStats = localStorage.getItem("ddilcup4_round_stats");
-        const savedVipSlots = localStorage.getItem("ddilcup4_team_vips");
+let participantList = [];
+let teamData = {};
+let teamVipSlots = {};
+let roundStats = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-        if (savedMembers) participantList = JSON.parse(savedMembers);
-        if (savedTeams) teamData = JSON.parse(savedTeams);
-        if (savedStats) roundStats = JSON.parse(savedStats);
-        if (savedVipSlots) teamVipSlots = JSON.parse(savedVipSlots);
+// 기존에 13팀 구조 세팅하던 코드 유지
+for(let i=1; i<=13; i++) {
+    teamData[i] = [null, null, null, null];
+    teamVipSlots[i] = 0;
+}
 
+// 구글 시트에서 실시간으로 전체 데이터 로딩하는 함수
+async function loadAllFromGoogleSheet() {
+    try {
+        const response = await fetch(GOOGLE_WEB_APP_URL);
+        const data = await response.json();
+        
+        // 구글 시트에 저장된 배열/오브젝트 데이터를 가져와 전역 변수에 바인딩
+        if (data.members) participantList = data.members;
+        if (data.teams) teamData = data.teams;
+        if (data.roundStats) roundStats = data.roundStats;
+        if (data.teamVips) teamVipSlots = data.teamVips;
+        
+        // 라운드 데이터 빈 공간 예외 방어코드
         for(let r=1; r<=4; r++){
+            if(!roundStats[r]) roundStats[r] = {};
             for(let t=1; t<=13; t++){
                 if(!roundStats[r][t]) {
                     roundStats[r][t] = { rank: "", vipAlive: true, pStats: [ {k:0, a:0}, {k:0, a:0}, {k:0, a:0}, {k:0, a:0} ] };
                 }
             }
         }
-
+        
+        // 데이터가 실시간으로 반영되었으므로 화면을 새로 리렌더링합니다.
         renderTable();
         renderTeamGrid();
         renderAllRoundPages();
-renderTierPage();
-    };
-
-    function saveAllToLocalStorage() {
-        localStorage.setItem("ddilcup4_members", JSON.stringify(participantList));
-        localStorage.setItem("ddilcup4_teams", JSON.stringify(teamData));
-        localStorage.setItem("ddilcup4_round_stats", JSON.stringify(roundStats));
-        localStorage.setItem("ddilcup4_team_vips", JSON.stringify(teamVipSlots));
+        renderTierPage();
+        
+        console.log("구글 시트 동기화 완료!");
+    } catch (error) {
+        console.error("구글 시트 데이터를 불러오는 데 실패했습니다:", error);
     }
+}
+
+// 구글 시트에 데이터를 즉시 전송하여 업로드(저장)하는 함수
+async function saveAllToLocalStorage() {
+    // 💡 함수 이름은 기존 코드들과의 호환을 위해 그대로 유지하지만 내부 로직은 구글 시트 전송으로 작동합니다!
+    const payload = {
+        members: participantList,
+        teams: teamData,
+        roundStats: roundStats,
+        teamVips: teamVipSlots
+    };
+    
+    try {
+        // 서버에 백업을 실시간 반영하기 위해 POST 요청
+        await fetch(GOOGLE_WEB_APP_URL, {
+            method: "POST",
+            mode: "no-cors", // 브라우저 CORS 교차 전송 제한 회피용
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+        console.log("구글 시트에 실시간 수정사항 저장됨.");
+    } catch (error) {
+        console.error("구글 시트 저장 실패:", error);
+    }
+}
+
+// 초기 로딩 진입점 변경
+window.onload = function() {
+    // 로컬 스토리지 대신 구글 시트에서 즉시 가져옵니다.
+    loadAllFromGoogleSheet();
+    
+    // 💡 실시간 상호 연동성 향상: 5초마다 구글 시트의 최신 내용을 확인하여 자동 동기화(공유)
+    setInterval(loadAllFromGoogleSheet, 5000);
+};
 
     function switchPage(pageId) {
         document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
@@ -1360,7 +1402,8 @@ renderTierPage();
         renderTable();
         renderTeamGrid();
         renderAllRoundPages();
-
+        saveAllToLocalStorage();
+        event.target.reset();
         const broadcastInput = document.getElementById('broadcast-name'); 
         if (broadcastInput) {
             broadcastInput.focus();    
