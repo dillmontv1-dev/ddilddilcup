@@ -2075,7 +2075,12 @@ function forceOriginalTeamChange(broadcastName, selectedValue) {
     // 3. 마지막으로 현재 보고 있는 티어표도 다시 그려 변경 사항을 즉시 반영합니다.
     renderTierPage();
 }
-    function saveToGoogleSheet(currentDatabaseData) {
+function saveToGoogleSheet(currentDatabaseData) {
+  // ⚠️ [안전장치 추가] 만약 넘겨받은 데이터가 없으면, 프로그램 전역 변수인 participantList를 강제로 끌어다 씁니다.
+  if (!currentDatabaseData && typeof participantList !== 'undefined') {
+    currentDatabaseData = participantList;
+  }
+
   // ⚠️ 여기에 본인의 실제 구글 웹 앱 URL 주소를 넣어주세요.
   const googleWebAppUrl = "https://script.google.com/macros/s/AKfycbxGxWgLk33CwmXlVvV2hFwZBhOVBfEkMdBdEfnfPIW5iL_tYlQ9iswlOfLW4XWA0773/exec"; 
 
@@ -2084,7 +2089,7 @@ function forceOriginalTeamChange(broadcastName, selectedValue) {
   fetch(googleWebAppUrl, {
     method: "POST",
     headers: {
-      "Content-Type": "text/plain", // 구글 앱스크립트 CORS 우회를 위해 text/plain 권장
+      "Content-Type": "text/plain",
     },
     body: JSON.stringify(currentDatabaseData)
   })
@@ -2100,7 +2105,6 @@ function forceOriginalTeamChange(broadcastName, selectedValue) {
     alert("시트 전송 실패! 콘솔창(F12)의 에러 메시지를 확인하세요.");
   });
 }
- 
 </script>
 
 </body>
