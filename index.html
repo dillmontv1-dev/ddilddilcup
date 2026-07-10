@@ -2075,6 +2075,26 @@ function forceOriginalTeamChange(broadcastName, selectedValue) {
     // 3. 마지막으로 현재 보고 있는 티어표도 다시 그려 변경 사항을 즉시 반영합니다.
     renderTierPage();
 }
+    // 구글 시트로 실시간 데이터를 전송하는 함수
+function saveToGoogleSheet(currentDatabaseData) {
+  // ⚠️ 여기에 방금 구글 시트에서 복사한 웹 앱 URL 주소를 넣어주세요.
+  const googleWebAppUrl = "https://script.google.com/macros/s/XXXXX/exec"; 
+
+  fetch(googleWebAppUrl, {
+    method: "POST",
+    mode: "no-cors", // CORS 정책 우회 (구글 앱스크립트 전송 시 유용)
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(currentDatabaseData) // 현재 사이트의 members, teams 등이 담긴 데이터베이스 객체
+  })
+  .then(() => {
+    console.log("구글 시트에 실시간 저장 성공!");
+  })
+  .catch((error) => {
+    console.error("구글 시트 전송 실패:", error);
+  });
+}
 </script>
 
 </body>
